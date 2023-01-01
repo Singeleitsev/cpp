@@ -1,0 +1,28 @@
+HKCR
+{
+	NoRemove CLSID
+	{
+		ForceRemove {6c836200-0f63-4d0d-be0b-4134f3e138bf} = s 'Filter Handler Class'
+		{
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Both'
+			}
+			TypeLib = s '{6b3ca93f-d524-40dd-bd36-37ba2ed4e26b}'
+			Version = s '1.0'
+		}
+
+		ForceRemove {381ee48d-c223-48d6-9296-85d583f161b2} = s 'Filter Handler Class'
+		{
+			ForceRemove PersistentAddinsRegistered = s ''
+			{
+				{89BCB740-6119-101A-BCB7-00DD010655AF} = s '{6c836200-0f63-4d0d-be0b-4134f3e138bf}'
+			}
+		}
+	}
+
+	NoRemove .ifc
+	{
+		NoRemove PersistentHandler = s '{381ee48d-c223-48d6-9296-85d583f161b2}'
+	}
+}

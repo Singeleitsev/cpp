@@ -1,0 +1,69 @@
+﻿// MFCApplication1Handlers.idl: источник языка IDL для MFCApplication1Handlers
+//
+
+// Этот файл будет обработан средством MIDL для
+// создание библиотеки типов (MFCApplication1Handlers.tlb) и кода маршалирования.
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	object,
+	uuid(5af34ee1-d981-46e3-84bf-a1d8fd6d11ea),
+	pointer_default(unique)
+]
+interface IPreview : IUnknown
+{
+};
+
+[
+	object,
+	uuid(591e60f8-e4ff-4e8a-8603-90ec266f81b9),
+	pointer_default(unique)
+]
+interface IThumbnail : IUnknown
+{
+};
+
+[
+	object,
+	uuid(6437448e-3a76-42d7-8c1a-79d0e65afaeb),
+	pointer_default(unique)
+]
+interface ISearch : IUnknown
+{
+};
+
+[
+	uuid(6b3ca93f-d524-40dd-bd36-37ba2ed4e26b),
+	version(1.0),
+]
+library MFCApplication1HandlersLib
+{
+	importlib("stdole2.tlb");
+	[
+		uuid(b19ef36d-6f5e-4993-a64e-618ff7cf6624)
+	]
+	coclass Preview
+	{
+		[default] interface IPreviewHandler;
+	};
+	[
+		uuid(c1475ecb-9d68-4f4b-8e56-7250b614afc0)
+	]
+	coclass Thumbnail
+	{
+		[default] interface IThumbnailProvider;
+	};
+	[
+		uuid(6c836200-0f63-4d0d-be0b-4134f3e138bf)
+	]
+	coclass Search
+	{
+		[default] interface IFilter;
+	};
+};
+
+import "shobjidl.idl";
+import "thumbcache.idl";
+import "filter.idl";
