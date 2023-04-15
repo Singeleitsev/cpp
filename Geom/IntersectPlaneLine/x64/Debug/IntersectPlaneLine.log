@@ -1,0 +1,3 @@
+﻿  IntersectPlaneLine.cpp
+D:\dev\cpp\Geom\IntersectPlaneLine\IntersectPlaneLine.cpp(43,12): warning C4101: R: неиспользованная локальная переменная
+  IntersectPlaneLine.vcxproj -> D:\dev\cpp\Geom\IntersectPlaneLine\x64\Debug\IntersectPlaneLine.exe
