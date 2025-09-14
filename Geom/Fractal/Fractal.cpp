@@ -1,8 +1,8 @@
-﻿// Beep.cpp : Определяет точку входа для приложения.
+﻿// Fractal.cpp : Определяет точку входа для приложения.
 //
 
 #include "framework.h"
-#include "Beep.h"
+#include "Fractal.h"
 
 #define MAX_LOADSTRING 100
 
@@ -29,7 +29,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     // Инициализация глобальных строк
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_BEEP, szWindowClass, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_FRACTAL, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
     // Выполнить инициализацию приложения:
@@ -38,7 +38,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_BEEP));
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_FRACTAL));
 
     MSG msg;
 
@@ -73,10 +73,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_BEEP));
+    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_FRACTAL));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_BEEP);
+    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_FRACTAL);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
@@ -125,18 +125,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-	case WM_LBUTTONUP:
-		{
-			Beep(262, 1000);
-			Beep(294, 1000);
-			Beep(330, 1000);
-			Beep(350, 1000);
-			Beep(392, 1000);
-			Beep(440, 1000);
-			Beep(494, 1000);
-
-		}
-		break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);

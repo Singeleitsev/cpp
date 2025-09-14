@@ -1,0 +1,43 @@
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+
+#include "afxres.h"
+
+////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+#ifdef APSTUDIO_INVOKED
+////////////////////////////////
+
+1 TEXTINCLUDE DISCARDABLE
+BEGIN
+	"resource.h\0"
+END
+
+2 TEXTINCLUDE DISCARDABLE
+BEGIN
+	"#include ""afxres.h""\r\n"
+	"\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE
+BEGIN
+	"\r\n"
+	"\0"
+END
+
+//////////////////////////
+#endif // APSTUDIO_INVOKED
+//////////////////////////
+
+IDI_APPICON	ICON	DISCARDABLE	"window.ico"
+IDI_APPICON_SM	ICON	DISCARDABLE	"windowsm.ico"
+
+#ifndef APSTUDIO_INVOKED
+
+#endif //not APSTUDIO_INVOKED
+
+
+
+
+
