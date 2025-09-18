@@ -1,30 +1,11 @@
-﻿#include <windows.h>
-#include <windowsx.h>
-#include <commctrl.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
-#include "framework.h" // Why quotation marks?
-#include "oglTemplate.h" // Why quotation marks?
-
-#define _USE_MATH_DEFINES
-#include <cmath>
-
-#pragma comment(lib, "Comctl32.lib")
-#pragma comment(lib, "opengl32.lib")
-#pragma comment(lib, "glu32.lib")
-
-#define MAX_LOADSTRING 100
+﻿#include "framework.h" // Quotation marks for custom headers
+#include "oglTemplate.h"
 
 // Application
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 void ResizeWndProc();
 void CloseWndProc();
 INT_PTR CALLBACK AboutProc(HWND, UINT, WPARAM, LPARAM);
-
-// Input
-void MouseRotateProc();
-void MouseRollProc();
-void MousePanProc();
 
 // OpenGL
 void InitializeGL();
@@ -67,14 +48,16 @@ ACCEL accel;
 
 // Status Bar
 HWND hwndStatusBar;
-DWORD xStatusParts[7] = { 146,292,438,584,730,876,1024 }; // Divide Status Bar by 7 parts
+int xStatusParts[9] = {0,0,0,0,0,0,0,0,-1}; //9 Indicated Variables
+//Proportions Empirically Counted for Width = 1024
+int xStatusProportions [8] = {102,204,307,430,552,675,788,901}; //8 Separators for 9 Fields
 
 // Flags
-byte isActive = 1;
-byte isFullscreen = 0;
-byte isRefreshed = 1;
+BYTE isActive = 1;
+BYTE isFullscreen = 0;
+BYTE isRefreshed = 1;
+BYTE nMouse = MOUSE_MODE_NO_ACTION;
 int nLastError = 0;
-byte nMouse = 0;
 
 // OpenGL
 HDC ghDC;
@@ -92,7 +75,9 @@ int yPrevPos, yCurPos;
 // Model Scale
 float GlobalScale = 0.001f;
 // Model Angle
+float aYZ_Model = 0.0f;
 float aXY_Model = 20.0f;
+float aXZ_Model = 0.0f;
 
 // Camera Angle
 float aYZ_Cam = 300.0f;
@@ -132,48 +117,60 @@ float dyCam3 = 0.0f;
 float dzCam3 = 0.0f;
 
 // Keyboard
-byte key[128] = { 0 };
+BYTE key[128] = { 0 };
 
 // Strings
-WCHAR szMainWndTitle[MAX_LOADSTRING];
-WCHAR szMainWndClass[MAX_LOADSTRING];
+LPCTSTR szMainWndTitle{ L"C++ OpenGL Environment" };
+LPCTSTR szMainWndClass{ L"MainWndClass" };
 
-const wchar_t* szMsgCloseTitle{ L"Such A Good Application" };
-const wchar_t* szMsgCloseText{ L"Close ?" };
+LPCTSTR szMsgCloseText{ L"Close?" };
 
-const wchar_t* szAboutMsgTitle{ L"Manual" };
-const wchar_t* szAboutMsgText{
+LPCTSTR szAboutMsgTitle{ L"Manual" };
+LPCTSTR szAboutMsgText{
     L"Camera Motion:\n"
+    "Left Mouse Button - Look Left - Right, Up - Down\n"
+    "Mouse Wheel Down - Move Camera Left-Right, Up-Down\n"
+    "Right Mouse Button - Roll Camera Left-Right, Look Up-Down\n"
+    "Mouse Scroll - Move Camera Forward-Backward\n"
+    "\n"
     "Arrow Up - Move Forward\n"
     "Arrow Down - Move Backward\n"
     "Arrow Left - Move Left\n"
     "Arrow Right - Move Right\n"
     "Page Up - Move Up\n"
-    "Page Down - Move Down\n\n"
-    "Camera Rotation : \n"
-    "W - Look Down\n"
-    "S - Look Up\n"
-    "A - Look Left\n"
-    "D - Look Right\n"
-    "Q - Roll Camera Left\n"
-    "E - Roll Camera Right\n\n"
+    "Page Down - Move Down\n"
+    "\n"
     "Object Rotation:\n"
-    "Z - Turn the Object Counter-Clockwise\n"
-    "X - Reset the Object Position\n"
-    "C - Turn the Object Clockwise\n"
-    "Tab - Turn the Object Clockwise Quick\n\n"
+    "W - Tilt from the Camera\n"
+    "S - Tilt to the Camera\n"
+    "A - Turn Left\n"
+    "D - Turn Right\n"
+    "Q - Tilt Left\n"
+    "E - Tilt Right\n"
+    "\n"
+    "Tab - Turn the Object Clockwise Quick\n"
+    "\n"
+    "Space, Esc - Reset Scene\n"
     "Shift - Boost" };
 
-const wchar_t* sz_xCam{ L"xCam = " };
-const wchar_t* sz_yCam{ L"yCam = " };
-const wchar_t* sz_zCam{ L"zCam = " };
-const wchar_t* sz_aXY_Model{ L"aXY_Model = " };
-const wchar_t* sz_aYZ_Cam{ L"aYZ_Cam = " };
-const wchar_t* sz_aXY_Cam{ L"aXY_Cam = " };
-const wchar_t* sz_aXZ_Cam{ L"aXZ_Cam = " };
+WCHAR pszDest[20]; //arraysize = 20;
+size_t cbDest = 40; // arraysize * sizeof(WCHAR);
+LPCTSTR pszFormat = TEXT("%s%f");
+
+LPCTSTR psz_xCam = TEXT("xCam = ");
+LPCTSTR psz_yCam = TEXT("yCam = ");
+LPCTSTR psz_zCam = TEXT("zCam = ");
+LPCTSTR psz_aYZ_Model = TEXT("aYZ_Model = ");
+LPCTSTR psz_aXY_Model = TEXT("aXY_Model = ");
+LPCTSTR psz_aXZ_Model = TEXT("aXZ_Model = ");
+LPCTSTR psz_aYZ_Cam = TEXT("aYZ_Cam = ");
+LPCTSTR psz_aXY_Cam = TEXT("aXY_Cam = ");
+LPCTSTR psz_aXZ_Cam = TEXT("aXZ_Cam = ");
+
+
 
 // Main Layout Array
-const byte nLayout[48][48] = { 
+const BYTE nLayout[48][48] = { 
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,2,1,1,1,2,1,1,1,2,1,1,1,2,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -231,10 +228,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     UNREFERENCED_PARAMETER(hPrevInstance); // Why this expression?
     UNREFERENCED_PARAMETER(lpCmdLine); // Why this expression?
 
-    ghInst = hInstance; // Where is GetModuleHandleW(); ?
-
-    LoadString(ghInst, IDS_APP_TITLE, szMainWndTitle, MAX_LOADSTRING);
-    LoadString(ghInst, IDC_OGLTEMPLATE, szMainWndClass, MAX_LOADSTRING);
+    ghInst = hInstance; // Where is GetModuleHandleW(); - ?
 
     wcx.cbSize = sizeof(WNDCLASSEX);
     wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS | CS_OWNDC;
@@ -268,15 +262,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
         }
         else
         {
-            if (msg.message != WM_QUIT)
-            {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            }
-            else
+            if (msg.message == WM_QUIT)
             {
                 CloseWndProc();
                 return (int)msg.wParam;
+            }
+            else
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
             }
         }
     goto WinMainLoop;
@@ -340,181 +334,224 @@ void ReAssign()
     AngularBoost = 10.0f;
     dStep = LinearSpeed;
     dAngle = AngularSpeed;
+    aYZ_Model = 0.0f;
     aXY_Model = 20.0f; // Model Yaw Left = World Yaw Left Over World's Center
+    aXZ_Model = 0.0f;
     aYZ_Cam = 300.0f; // Camera Pitch Up = World Pitch Down
     aXY_Cam = 0.0f; // Camera Yaw Left = World Yaw Right Over Camera's Center
     aXZ_Cam = 0.0f; // Cameta Roll Left = World Roll Right
     xCam = 0.0f;
     yCam = 9.0f; // Camera Move Back = World Move Forward
     zCam = -4.5f; // Camera Move Up = World Move Down
-    // Set Flag
-    isRefreshed = 1;
+    isRefreshed = 1; // Set Flag
 }
-
-// 13_CreateMenu.asm
-
-// 14_CreateStatusBar.asm
 
 // 20_WndProc.asm
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-    case WM_MOUSEMOVE:
-    {
-        xCurPos = GET_X_LPARAM(lParam);
-        yCurPos = GET_Y_LPARAM(lParam);
-        switch (nMouse)
+        case WM_MOUSEMOVE:
         {
-        case 1: //MOUSE_MODE_CAMERA_ROTATION = 1
-            MouseRotateProc();
-        case 2: //MOUSE_MODE_CAMERA_ROLL = 2
-            MouseRollProc();
-        case 3: //MOUSE_MODE_CAMERA_PAN = 3
-            MousePanProc();
+            switch (nMouse)
+            {
+                case MOUSE_MODE_CAMERA_ROTATION:
+                {
+                    xCurPos = GET_X_LPARAM(lParam);
+                    yCurPos = GET_Y_LPARAM(lParam);
+                    dxMouse = float(xPrevPos - xCurPos) / 20;
+                    dyMouse = float(yPrevPos - yCurPos) / 20;
+                    aXY_Cam = CheckAngle(aXY_Cam + dxMouse);
+                    aYZ_Cam = CheckAngle(aYZ_Cam + dyMouse);
+                    xPrevPos = xCurPos;
+                    yPrevPos = yCurPos;
+                    return 0;
+                }
+                case MOUSE_MODE_CAMERA_ROLL:
+                {
+                    xCurPos = GET_X_LPARAM(lParam);
+                    yCurPos = GET_Y_LPARAM(lParam);
+                    dxMouse = float(xPrevPos - xCurPos) / 20;
+                    dyMouse = float(yPrevPos - yCurPos) / 20;
+                    aXZ_Cam = CheckAngle(aXZ_Cam + dxMouse);
+                    aYZ_Cam = CheckAngle(aYZ_Cam + dyMouse);
+                    xPrevPos = xCurPos;
+                    yPrevPos = yCurPos;
+                    return 0;
+                }
+                case MOUSE_MODE_CAMERA_PAN:
+                {
+                    xCurPos = GET_X_LPARAM(lParam);
+                    yCurPos = GET_Y_LPARAM(lParam);
+                    dxMouse = float(xPrevPos - xCurPos) / 20;
+                    dyMouse = float(yPrevPos - yCurPos) / 20;
+                    dxCam0 = CheckDistance(-dxMouse);
+                    dyCam0 = CheckDistance(dyMouse);
+                    dzCam0 = 0;
+                    CameraMove();
+                    xPrevPos = xCurPos;
+                    yPrevPos = yCurPos;
+                    return 0;
+                }
+                default:
+                    return DefWindowProc(hWnd, message, wParam, lParam);
+            }
         }
-        return 0;
-    }
-    case WM_KEYDOWN: // Is A Key Being Held Down?
-    {
-        key[wParam] = 1; // If So, Mark It As TRUE
-        switch LOWORD(wParam)
+        case WM_KEYDOWN: // Is A Key Being Held Down?
         {
-            case VK_ESCAPE:
+            key[wParam] = 1; // If So, Mark It As TRUE
+            switch LOWORD(wParam)
             {
-                if (isRefreshed) { CloseWndProc(); }
-                else { ReAssign(); }
-                return 0; // Return To The Message Loop
+                case VK_ESCAPE:
+                {
+                    if (isRefreshed)
+                    {
+                        CloseWndProc();
+                    }
+                    else
+                    {
+                        ReAssign();
+                    }
+                    return 0; // Return To The Message Loop
+                }
+                case VK_SPACE:
+                {
+                    ReAssign();
+                    return 0; // Return To The Message Loop
+                }
+                case VK_RETURN: //Enter
+                {
+                    AboutProc(ghWnd, 0, wParam, lParam);
+                    return 0; // Return To The Message Loop
+                }
+                case VK_F1:
+                {
+                    AboutProc(ghWnd, 0, wParam, lParam);
+                    return 0; // Return To The Message Loop
+                }
+                case VK_TAB:
+                {
+                    aXY_Model = CheckAngle(aXY_Model + 30); //Object Turn Counter-Clockwise 30 degrees
+                    return 0; // Return To The Message Loop
+                }
+                default:
+                    return DefWindowProc(hWnd, message, wParam, lParam);
             }
-            case VK_SPACE:
-            {
-                ReAssign();
-                return 0; // Return To The Message Loop
-            }
-            case VK_RETURN: //Enter
-            {
-                AboutProc(ghWnd, 0, wParam, lParam);
-                return 0; // Return To The Message Loop
-            }
-            case VK_F1:
-            {
-                AboutProc(ghWnd, 0, wParam, lParam);
-                return 0; // Return To The Message Loop
-            }
-            case VK_TAB:
-            {
-                aXY_Model = CheckAngle(aXY_Model + 30); //Object Turn Counter-Clockwise 30 degrees
-                return 0; // Return To The Message Loop
-            }
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
         }
-    }
-    case WM_KEYUP: // Has A Key Been Released?
-    {
-        key[wParam] = 0; // If So, Mark It As FALSE
-        return 0; // Jump Back
-    }
-    case WM_LBUTTONDOWN:
-    {
-        nMouse = 1; // MOUSE_MODE_CAMERA_ROTATION = 1
-        xPrevPos = GET_X_LPARAM(lParam); // ((int)(short)((WORD)(((DWORD_PTR)(lParam)) & 0xffff)));
-        yPrevPos = GET_Y_LPARAM(lParam); // yPrevPos = ((int)(short)((WORD)((((DWORD_PTR)(lParam)) >> 16) & 0xffff)));
-        return 0;
-    }
-    case WM_LBUTTONUP:
-    {
-        nMouse = 0; // MOUSE_MODE_FREE_MOTION = 0
-        return 0;
-    }
-    case WM_RBUTTONDOWN:
-    {
-        nMouse = 2; // MOUSE_MODE_CAMERA_ROLL = 2
-        xPrevPos = GET_X_LPARAM(lParam);
-        yPrevPos = GET_Y_LPARAM(lParam);
-        return 0;
-    }
-    case WM_RBUTTONUP:
-    {
-        nMouse = 0; // MOUSE_MODE_FREE_MOTION = 0
-        return 0;
-    }
-    case WM_MBUTTONDOWN:
-    {
-        nMouse = 3; // MOUSE_MODE_CAMERA_PAN = 3
-        xPrevPos = GET_X_LPARAM(lParam);
-        yPrevPos = GET_Y_LPARAM(lParam);
-        return 0;
-    }
-    case WM_MBUTTONUP:
-    {
-        nMouse = 0; // MOUSE_MODE_FREE_MOTION = 0
-        return 0;
-    }
-    case WM_MBUTTONDBLCLK:
-    {
-        ReAssign();
-        return 0;
-    }
-    case WM_MOUSEWHEEL:
-    {
-        dxCam0 = 0;
-        dyCam0 = 0;
-        if (HIWORD(wParam) < 0) { dzCam0 = -dStep; }
-        else { dzCam0 = dStep; }
-        CameraMove();
-        return 0;
-    }
-    case WM_COMMAND:
-    {
-        int wmId = LOWORD(wParam);
-        // Разобрать выбор в меню:
-        switch (wmId)
+        case WM_KEYUP: // Has A Key Been Released?
         {
-            case IDM_ABOUT:
-                DialogBox(ghInst, MAKEINTRESOURCE(IDD_ABOUTBOX), ghWnd, AboutProc);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
+            key[wParam] = 0; // If So, Mark It As FALSE
+            return 0;
         }
-    }
-    case WM_ACTIVATE: // Watch For Window Activate Message
-    {
-        // LoWord Can Be WA_INACTIVE, WA_ACTIVE, WA_CLICKACTIVE,
-        // The High-Order Word Specifies The Minimized State Of The Window Being Activated Or Deactivated.
-        // A NonZero Value Indicates The Window Is Minimized.
-        if ((LOWORD(wParam) != WA_INACTIVE) && !((BOOL)HIWORD(wParam)))
-            isActive = 1; // Program Is Active
-        else
-            isActive = 0; // Program Is No Longer Active
-        return 0; // Return To The Message Loop
-    }
-    case WM_SIZE:
-    {
-        ResizeWndProc();
-        return 0; // Return To The Message Loop
-    }
-    case WM_CREATE:
-    {
-        ghWnd = hWnd;
-        InitCommonControlsEx(&icce);
-        hwndStatusBar = CreateWindowEx(0, STATUSCLASSNAME, (PCTSTR)0, SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, ghWnd, (HMENU)1, ghInst, 0);
-        SendMessage(hwndStatusBar, SB_SETPARTS, (WPARAM)7, (LPARAM)&xStatusParts);
-        return 0;
-    }
-    case WM_CLOSE:
-    {
-        CloseWndProc();
-        return 0;
-    }
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+        case WM_LBUTTONDOWN:
+        {
+            nMouse = MOUSE_MODE_CAMERA_ROTATION;
+            xPrevPos = GET_X_LPARAM(lParam);
+            yPrevPos = GET_Y_LPARAM(lParam);
+            return 0;
+        }
+        case WM_LBUTTONUP:
+        {
+            nMouse = MOUSE_MODE_NO_ACTION;
+            return 0;
+        }
+        case WM_RBUTTONDOWN:
+        {
+            nMouse = MOUSE_MODE_CAMERA_ROLL;
+            xPrevPos = GET_X_LPARAM(lParam);
+            yPrevPos = GET_Y_LPARAM(lParam);
+            return 0;
+        }
+        case WM_RBUTTONUP:
+        {
+            nMouse = MOUSE_MODE_NO_ACTION;
+            return 0;
+        }
+        case WM_MBUTTONDOWN:
+        {
+            nMouse = MOUSE_MODE_CAMERA_PAN;
+            xPrevPos = GET_X_LPARAM(lParam);
+            yPrevPos = GET_Y_LPARAM(lParam);
+            return 0;
+        }
+        case WM_MBUTTONUP:
+        {
+            nMouse = MOUSE_MODE_NO_ACTION;
+            return 0;
+        }
+        case WM_MBUTTONDBLCLK:
+        {
+            ReAssign();
+            return 0;
+        }
+        case WM_MOUSEWHEEL:
+        {
+            dxCam0 = 0;
+            dyCam0 = 0;
+            dzCam0 = float(GET_WHEEL_DELTA_WPARAM(wParam) / 60);
+            CameraMove();
+            return 0;
+        }
+        case WM_COMMAND:
+        {
+            int wmId = LOWORD(wParam);
+            // Разобрать выбор в меню:
+            switch (wmId)
+            {
+                case IDM_ABOUT:
+                {
+                    DialogBox(ghInst, MAKEINTRESOURCE(IDD_ABOUTBOX), ghWnd, AboutProc);
+                    break;
+                }
+                case IDM_EXIT:
+                {
+                    DestroyWindow(hWnd);
+                    break;
+                }
+                default:
+                    return DefWindowProc(hWnd, message, wParam, lParam);
+            }
+        }
+        case WM_ACTIVATE: // Watch For Window Activate Message
+        {
+            // LoWord Can Be WA_INACTIVE, WA_ACTIVE, WA_CLICKACTIVE,
+            // The High-Order Word Specifies The Minimized State Of The Window Being Activated Or Deactivated.
+            // A NonZero Value Indicates The Window Is Minimized.
+            if ((LOWORD(wParam) != WA_INACTIVE) && !((BOOL)HIWORD(wParam)))
+            {
+                isActive = 1; // Program Is Active
+            }
+            else
+            {
+                isActive = 0; // Program Is No Longer Active
+            }
+            return 0; // Return To The Message Loop
+        }
+        case WM_SIZE:
+        {
+            ResizeWndProc();
+            return 0; // Return To The Message Loop
+        }
+        case WM_CREATE:
+        {
+            ghWnd = hWnd;
+            InitCommonControlsEx(&icce);
+            hwndStatusBar = CreateWindowEx(0, STATUSCLASSNAME, (PCTSTR)0, SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, ghWnd, (HMENU)1, ghInst, 0);
+            SendMessage(hwndStatusBar, SB_SETPARTS, (WPARAM)9, (LPARAM)&xStatusParts);
+            return 0;
+        }
+        case WM_CLOSE:
+        {
+            CloseWndProc();
+            return 0;
+        }
+        case WM_DESTROY:
+        {
+            PostQuitMessage(0);
+            break;
+        }
+        default:
+            return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
 }
@@ -534,48 +571,12 @@ void ResizeWndProc()
     glViewport(0, 0, RectWidth, RectHeight);
     //Status Bar
     SendMessage(hwndStatusBar, WM_SIZE, 0, 0);
-    xStatusParts[0] = RectWidth / 7;
-    for (i = 1; i < 7; i++)
+    xStatusParts[0] = RectWidth / 9;
+    for (i = 1; i < 9; i++)
     {
         xStatusParts[i] = xStatusParts[i - 1] + xStatusParts[0];
     }
-    SendMessage(hwndStatusBar, SB_SETPARTS, 7, (LPARAM)&xStatusParts);
-}
-
-// 24_1_MouseRotate.asm
-void MouseRotateProc()
-{
-    dxMouse = float(xPrevPos - xCurPos)/20;
-    aXY_Cam = CheckAngle(aXY_Cam + dxMouse);
-    xPrevPos = xCurPos;
-    dyMouse = float(yPrevPos - yCurPos)/20;
-    aYZ_Cam = CheckAngle(aYZ_Cam + dyMouse);
-    yPrevPos = yCurPos;
-}
-
-// 24_2_MouseRoll.asm
-void MouseRollProc()
-{
-    dxMouse = float(xPrevPos - xCurPos) / 20;
-    aXZ_Cam = CheckAngle(aXZ_Cam + dxMouse);
-    xPrevPos = xCurPos;
-    dyMouse = float(yPrevPos - yCurPos) / 20;
-    aYZ_Cam = CheckAngle(aYZ_Cam + dyMouse);
-    yPrevPos = yCurPos;
-}
-
-
-// 24_3_MousePan.asm
-void MousePanProc()
-{
-    dxMouse = float(xPrevPos - xCurPos) / 20;
-    dxCam0 = CheckDistance(-dxMouse);
-    xPrevPos = xCurPos;
-    CameraMove();
-    dyMouse = float(yPrevPos - yCurPos) / 20;
-    dyCam0 = CheckDistance(dyMouse);
-    yPrevPos = yCurPos;
-    CameraMove();
+    SendMessage(hwndStatusBar, SB_SETPARTS, 9, (LPARAM)&xStatusParts);
 }
 
 // 28_AboutProc.asm
@@ -584,24 +585,27 @@ INT_PTR CALLBACK AboutProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
     UNREFERENCED_PARAMETER(lParam);
     switch (message)
     {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        case WM_INITDIALOG:
         {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
+            return 1;
         }
-        break;
+        case WM_COMMAND:
+        {
+            if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+            {
+                EndDialog(hDlg, LOWORD(wParam));
+                return 1;
+            }
+            break;
+        }
+        return 0;
     }
-    return (INT_PTR)FALSE;
 }
 
 // 29_CloseProc.asm
 void CloseWndProc()
 {
-    if (MessageBox(ghWnd, szMsgCloseText, szMsgCloseTitle, MB_YESNO | MB_ICONQUESTION) == IDYES)
+    if (MessageBox(ghWnd, szMsgCloseText, szMainWndTitle, MB_YESNO | MB_ICONQUESTION) == IDYES)
     {
         wglMakeCurrent(NULL, NULL);
         wglDeleteContext(ghRC);
@@ -634,17 +638,13 @@ void CheckKeys()
         dStep = dStep * LinearBoost;
         dAngle = dAngle * AngularBoost;
     }
-// Model Rotation
-    if (key[0x5A]) {aXY_Model = CheckAngle(aXY_Model + dAngle);} //Z - Model Turn Counter-Clockwise
-    if (key[0x43]) {aXY_Model = CheckAngle(aXY_Model - dAngle);} //C - Model Turn Clockwise
-
-// Camera Rotation - Keyboard Input
-    if (key[0x57]) {aYZ_Cam = CheckAngle(aYZ_Cam - dAngle);} //W
-    if (key[0x53]) {aYZ_Cam = CheckAngle(aYZ_Cam + dAngle);} //S
-    if (key[0x41]) {aXY_Cam = CheckAngle(aXY_Cam - dAngle);} //A
-    if (key[0x44]) {aXY_Cam = CheckAngle(aXY_Cam + dAngle);} //D
-    if (key[0x51]) {aXZ_Cam = CheckAngle(aXZ_Cam + dAngle);} //Q
-    if (key[0x45]) {aXZ_Cam = CheckAngle(aXZ_Cam - dAngle);} //E
+// Model Rotation - Keyboard Input
+    if (key[0x57]) {aYZ_Model = CheckAngle(aYZ_Model - dAngle);} //W
+    if (key[0x53]) {aYZ_Model = CheckAngle(aYZ_Model + dAngle);} //S
+    if (key[0x41]) {aXY_Model = CheckAngle(aXY_Model - dAngle);} //A - Model Turn Counter-Clockwise
+    if (key[0x44]) {aXY_Model = CheckAngle(aXY_Model + dAngle);} //D - Model Turn Clockwise
+    if (key[0x51]) {aXZ_Model = CheckAngle(aXZ_Model + dAngle);} //Q
+    if (key[0x45]) {aXZ_Model = CheckAngle(aXZ_Model - dAngle);} //E
 
     //Camera Move Forward and Backward
     if (key[VK_UP])
@@ -696,20 +696,37 @@ void CheckKeys()
 // 32_CheckAngleProc.asm
 float CheckAngle(float Angle)
 {
-    if (Angle > 360) { return (Angle - 360); }
-    else if (Angle < 0) { return (Angle + 360); }
-    else { return Angle; }
-//Set Flag
-    isRefreshed = 0;
+    if (Angle > 360)
+    {
+        return (Angle - 360);
+    }
+    else if (Angle < 0)
+    {
+        return (Angle + 360);
+    }
+    else
+    {
+        return Angle;
+    }
+    isRefreshed = 0; //Set Flag
 }
 
 // 33_CheckDistanceProc.asm
 float CheckDistance(float Distance)
 {
-    if (Distance > 20) { return 20; }
-    else if (Distance < -20) { return -20; }
-    else { return Distance; }
-    return Distance;
+    if (Distance > 1000)
+    {
+        return 1000;
+    }
+    else if (Distance < -1000)
+    {
+        return -1000;
+    }
+    else
+    {
+        return Distance;
+    }
+    /*return Distance;*/
 }
 
 // 34_CameraMoveProc.asm
@@ -751,7 +768,9 @@ void SetView()
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glScalef(GlobalScale, GlobalScale, GlobalScale); // 1 - Model Scale
-    glRotatef(aXY_Model, 0, 0, 1); // 2 - Model Turn
+    glRotatef(aYZ_Model, 1, 0, 0); // 2 - Model Pitch
+    glRotatef(aXY_Model, 0, 0, 1); // 3 - Model Yaw
+    glRotatef(aXZ_Model, 0, 1, 0); // 4 - Model Roll
 //Set Camera
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -762,24 +781,40 @@ void SetView()
     glTranslatef(xCam, yCam, zCam); // 4 - Camera Move
 }
 
-
 // 40_RefreshStatus.asm
 void RefreshStatus()
 {
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 0, (LPARAM)sz_xCam);
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 1, (LPARAM)sz_yCam);
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 2, (LPARAM)sz_zCam);
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 3, (LPARAM)sz_aXY_Model);
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 4, (LPARAM)sz_aYZ_Cam);
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 5, (LPARAM)sz_aXY_Cam);
-    SendMessage(hwndStatusBar, SB_SETTEXTW, 6, (LPARAM)sz_aXZ_Cam);
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_xCam, xCam);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 0, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_yCam, yCam);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 1, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_zCam, zCam);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 2, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aYZ_Model, aYZ_Model);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 3, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXY_Model, aXY_Model);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 4, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXZ_Model, aXZ_Model);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 5, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aYZ_Cam, aYZ_Cam);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 6, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXY_Cam, aXY_Cam);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 7, (LPARAM)pszDest);
+
+    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXZ_Cam, aXZ_Cam);
+    SendMessage(hwndStatusBar, SB_SETTEXTW, 8, (LPARAM)pszDest);
 }
 
 // 50_DrawAxesProc.asm
 void DrawAxes()
 {
-    //glMatrixMode(GL_MODELVIEW);
-    //glPushMatrix();
     glColor3f(1, 0, 0); // Red
     glBegin(GL_LINES);
         glVertex3f(-7000, 0, 0);
@@ -807,14 +842,13 @@ void DrawAxes()
         glVertex3f(0, 0, 1000);
         glVertex3f(50, 0, 900);
     glEnd();
-    //glPopMatrix();
 }
 
 // 51_DrawObjectProc.asm
 void DrawObject()
 {
     // Counters
-    byte x, y, bType;
+    BYTE x, y, bType; 
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     glTranslatef(-5875.0f, 5875.0f, 0.0f);
@@ -826,26 +860,36 @@ void DrawObject()
             bType = nLayout[x][y];
             switch (bType)
             {
-            case 1:
-                glColor3f(0.65f, 0.65f, 0.65f); //Gray
-                rbmkDrawSb11();
-                break;
-            case 2:
-                glColor3f(0.15f, 0.75f, 0.15f); //Green
-                rbmkDrawCap();
-                break;
-            case 3:
-                glColor3f(0.85f, 0.85f, 0.15f); //Yellow
-                rbmkDrawCap();
-                break;
-            case 4:
-                glColor3f(0.85f, 0.15f, 0.15f); //Red
-                rbmkDrawCap();
-                break;
-            case 5:
-                glColor3f(0.25f, 0.4f, 0.85f); //Blue
-                rbmkDrawCap();
-                break;
+                case 1:
+                {
+                    glColor3f(0.65f, 0.65f, 0.65f); //Gray
+                    rbmkDrawSb11();
+                    break;
+                }
+                case 2:
+                {
+                    glColor3f(0.15f, 0.75f, 0.15f); //Green
+                    rbmkDrawCap();
+                    break;
+                }
+                case 3:
+                {
+                    glColor3f(0.85f, 0.85f, 0.15f); //Yellow
+                    rbmkDrawCap();
+                    break;
+                }
+                case 4:
+                {
+                    glColor3f(0.85f, 0.15f, 0.15f); //Red
+                    rbmkDrawCap();
+                    break;
+                }
+                case 5:
+                {
+                    glColor3f(0.25f, 0.4f, 0.85f); //Blue
+                    rbmkDrawCap();
+                    break;
+                }
             }
             if (bType != 0)
             {
@@ -880,6 +924,18 @@ void rbmkDrawSb11()
         glVertex3f(-100, 100, 0);
         glVertex3f(-120, -120, -20);
         glVertex3f(-100, -100, 0);
+    glEnd();
+   glBegin(GL_QUAD_STRIP);
+        glVertex3f(-120, -120, -20);
+        glVertex3f(-100, -100, -600);
+        glVertex3f(120, -120, -20);
+        glVertex3f(100, -100, -600);
+        glVertex3f(120, 120, -20);
+        glVertex3f(100, 100, -600);
+        glVertex3f(-120, 120, -20);
+        glVertex3f(-100, 100, -600);
+        glVertex3f(-120, -120, -20);
+        glVertex3f(-100, -100, -600);
     glEnd();
 }
 
@@ -916,7 +972,7 @@ void rbmkDrawGraphite()
 
 void Extrude(int nVertices, float htHeight, float pVertices[])
 {
-    byte i;
+    BYTE i;
     glBegin(GL_QUADS);
     for (i = 0; i < (nVertices - 1) * 2; i += 2)
     {

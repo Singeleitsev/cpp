@@ -9,15 +9,24 @@
 #define IDD_ABOUTBOX			103
 #define IDM_ABOUT				104
 #define IDM_EXIT				105
+
 #define IDI_OGLTEMPLATE			107
 #define IDI_SMALL				108
+
 #define IDC_OGLTEMPLATE			109
 #define IDC_MYICON				2
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif
-// Следующие стандартные значения для новых объектов
-//
+
+// Mouse Input Constants
+#define MOUSE_MODE_NO_ACTION 0
+#define MOUSE_MODE_CAMERA_ROTATION  1
+#define MOUSE_MODE_CAMERA_ROLL 2
+#define MOUSE_MODE_CAMERA_PAN 3
+
+#define MAX_LOADSTRING 100
+
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 
