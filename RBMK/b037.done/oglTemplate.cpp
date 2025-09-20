@@ -44,7 +44,7 @@ HINSTANCE ghInst;
 HWND ghWnd;
 
 // Menu
-ACCEL accel;
+HACCEL hAccelTable;
 
 // Status Bar
 HWND hwndStatusBar;
@@ -125,8 +125,8 @@ LPCTSTR szMainWndClass{ L"MainWndClass" };
 
 LPCTSTR szMsgCloseText{ L"Close?" };
 
-LPCTSTR szAboutMsgTitle{ L"Manual" };
-LPCTSTR szAboutMsgText{
+LPCTSTR szManualMsgTitle{ L"Manual" };
+LPCTSTR szManualMsgText{
     L"Camera Motion:\n"
     "Left Mouse Button - Look Left - Right, Up - Down\n"
     "Mouse Wheel Down - Move Camera Left-Right, Up-Down\n"
@@ -248,7 +248,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     // Выполнить инициализацию приложения
     ghWnd = CreateWindow(szMainWndClass, szMainWndTitle, WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, 0, 0, hInstance, 0);
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_OGLTEMPLATE));
+    hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_OGLTEMPLATE));
 
     InitializeGL();
 
@@ -269,9 +269,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
             }
             else
             {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                if (!TranslateAccelerator(ghWnd, hAccelTable, &msg))
+                {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
             }
+
         }
     goto WinMainLoop;
 }
@@ -407,12 +411,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     if (isRefreshed)
                     {
                         CloseWndProc();
+                        return 0; // Return To The Message Loop
                     }
                     else
                     {
                         ReAssign();
+                        return 0; // Return To The Message Loop
                     }
-                    return 0; // Return To The Message Loop
                 }
                 case VK_SPACE:
                 {
@@ -421,12 +426,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }
                 case VK_RETURN: //Enter
                 {
-                    AboutProc(ghWnd, 0, wParam, lParam);
+                    MessageBox(ghWnd, (LPCWSTR)szManualMsgText, (LPCWSTR)szManualMsgTitle, MB_OK);
                     return 0; // Return To The Message Loop
                 }
                 case VK_F1:
                 {
-                    AboutProc(ghWnd, 0, wParam, lParam);
+                    MessageBox(ghWnd, (LPCWSTR)szManualMsgText, (LPCWSTR)szManualMsgTitle, MB_OK);
                     return 0; // Return To The Message Loop
                 }
                 case VK_TAB:
@@ -501,12 +506,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 case IDM_ABOUT:
                 {
                     DialogBox(ghInst, MAKEINTRESOURCE(IDD_ABOUTBOX), ghWnd, AboutProc);
-                    break;
+                    return 0;
                 }
                 case IDM_EXIT:
                 {
-                    DestroyWindow(hWnd);
-                    break;
+                    CloseWndProc();
+                    return 0;
                 }
                 default:
                     return DefWindowProc(hWnd, message, wParam, lParam);
@@ -525,12 +530,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 isActive = 0; // Program Is No Longer Active
             }
-            return 0; // Return To The Message Loop
+            return 0;
         }
         case WM_SIZE:
         {
             ResizeWndProc();
-            return 0; // Return To The Message Loop
+            return 0;
         }
         case WM_CREATE:
         {
@@ -548,7 +553,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case WM_DESTROY:
         {
             PostQuitMessage(0);
-            break;
+            return 0;
         }
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -571,10 +576,9 @@ void ResizeWndProc()
     glViewport(0, 0, RectWidth, RectHeight);
     //Status Bar
     SendMessage(hwndStatusBar, WM_SIZE, 0, 0);
-    xStatusParts[0] = RectWidth / 9;
-    for (i = 1; i < 9; i++)
+    for (i = 0; i < 8; i++)
     {
-        xStatusParts[i] = xStatusParts[i - 1] + xStatusParts[0];
+        xStatusParts[i] = (xStatusProportions[i] * RectWidth) >> 10;
     }
     SendMessage(hwndStatusBar, SB_SETPARTS, 9, (LPARAM)&xStatusParts);
 }
@@ -596,10 +600,11 @@ INT_PTR CALLBACK AboutProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
                 EndDialog(hDlg, LOWORD(wParam));
                 return 1;
             }
-            break;
         }
-        return 0;
+        default:
+            return DefWindowProc(hDlg, message, wParam, lParam);
     }
+    return 0;
 }
 
 // 29_CloseProc.asm
