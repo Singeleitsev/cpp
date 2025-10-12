@@ -96,8 +96,7 @@ float AngularSpeed = 0.1f;
 float LinearBoost = 10.0f;
 float AngularBoost = 10.0f;
 float dTab = 30.0;
-float dxMouse;
-float dyMouse;
+float dxMouse, dyMouse;
 
 // Affine Transformations
 float aRad = 0.0f;
@@ -578,6 +577,9 @@ void ResizeWndProc()
     SendMessage(hwndStatusBar, WM_SIZE, 0, 0);
     for (i = 0; i < 8; i++)
     {
+        //Since the Proportions were Empirically Counted for Width = 1024,
+        //We must Divide (Proportions*Width) by 1024
+        //Or just shift left by 10 bits
         xStatusParts[i] = (xStatusProportions[i] * RectWidth) >> 10;
     }
     SendMessage(hwndStatusBar, SB_SETPARTS, 9, (LPARAM)&xStatusParts);
@@ -602,7 +604,7 @@ INT_PTR CALLBACK AboutProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
             }
         }
         default:
-            return DefWindowProc(hDlg, message, wParam, lParam);
+            return 0;
     }
     return 0;
 }
@@ -646,10 +648,10 @@ void CheckKeys()
 // Model Rotation - Keyboard Input
     if (key[0x57]) {aYZ_Model = CheckAngle(aYZ_Model - dAngle);} //W
     if (key[0x53]) {aYZ_Model = CheckAngle(aYZ_Model + dAngle);} //S
-    if (key[0x41]) {aXY_Model = CheckAngle(aXY_Model - dAngle);} //A - Model Turn Counter-Clockwise
-    if (key[0x44]) {aXY_Model = CheckAngle(aXY_Model + dAngle);} //D - Model Turn Clockwise
-    if (key[0x51]) {aXZ_Model = CheckAngle(aXZ_Model + dAngle);} //Q
-    if (key[0x45]) {aXZ_Model = CheckAngle(aXZ_Model - dAngle);} //E
+    if (key[0x41]) {aXY_Model = CheckAngle(aXY_Model + dAngle);} //A - Model Turn Counter-Clockwise
+    if (key[0x44]) {aXY_Model = CheckAngle(aXY_Model - dAngle);} //D - Model Turn Clockwise
+    if (key[0x51]) {aXZ_Model = CheckAngle(aXZ_Model - dAngle);} //Q
+    if (key[0x45]) {aXZ_Model = CheckAngle(aXZ_Model + dAngle);} //E
 
     //Camera Move Forward and Backward
     if (key[VK_UP])
@@ -731,7 +733,6 @@ float CheckDistance(float Distance)
     {
         return Distance;
     }
-    /*return Distance;*/
 }
 
 // 34_CameraMoveProc.asm
