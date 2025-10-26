@@ -14,6 +14,7 @@ void DrawGLScene();
 void CheckKeys();
 float CheckAngle(float Angle);
 float CheckDistance(float Distance);
+void ModelRotate();
 void CameraMove();
 void SetView();
 void RefreshStatus();
@@ -55,8 +56,12 @@ int xStatusProportions [8] = {102,204,307,430,552,675,788,901}; //8 Separators f
 // Flags
 BYTE isActive = 1;
 BYTE isFullscreen = 0;
-BYTE isRefreshed = 1;
-BYTE nMouse = MOUSE_MODE_NO_ACTION;
+BYTE isInitialPosition = 1;
+BYTE isRefreshed = 0;
+BYTE isRotated = 0;
+BYTE isMoved = 0;
+BYTE nMouseMode = MOUSE_MODE_NO_ACTION;
+unsigned int nFrame = 0;
 int nLastError = 0;
 
 // OpenGL
@@ -64,7 +69,7 @@ HDC ghDC;
 HGLRC ghRC;
 DWORD iPixelFormat = 0;
 DWORD RectWidth, RectHeight;
-float RectAspect;
+GLdouble RectAspect;
 
 // Cursor Position
 int xScrCenter = 512;
@@ -73,7 +78,7 @@ int xPrevPos, xCurPos;
 int yPrevPos, yCurPos;
 
 // Model Scale
-float GlobalScale = 0.001f;
+//float GlobalScale = 0.001f;
 // Model Angle
 float aYZ_Model = 0.0f;
 float aXY_Model = 20.0f;
@@ -85,13 +90,12 @@ float aXY_Cam = 0.0f;
 float aXZ_Cam = 0.0f;
 // Camera Position
 float xCam = 0.0f;
-float yCam = 9.0f; //Move the World 9 Meters Forward = Move the Camera 9 Meters Back
-float zCam = -4.5f; //Move the World 4.5 Meters Down = Move the Camera 4.5 Meters Up
+float yCam = 9000.0f; //Move the World 9 Meters Forward = Move the Camera 9 Meters Back
+float zCam = -4500.0f; //Move the World 4.5 Meters Down = Move the Camera 4.5 Meters Up
 
 // Motion
-float dStep = 0.1f;
-float dAngle = 1.0f;
-float LinearSpeed = 0.01f;
+float dStep, dAngle;
+float LinearSpeed = 10.0f;
 float AngularSpeed = 0.1f;
 float LinearBoost = 10.0f;
 float AngularBoost = 10.0f;
@@ -115,11 +119,22 @@ float dxCam3 = 0.0f;
 float dyCam3 = 0.0f;
 float dzCam3 = 0.0f;
 
+//Lights
+GLfloat light_position[] = { -12000.0f, -12000.0f, 24000.0f, 1.0f };
+GLfloat light_ambient[] = { 0.04f, 0.04f, 0.035f, 0.0f };
+GLfloat light_diffuse[] = { 0.04f, 0.04f, 0.035f, 0.0f };
+//Materials
+GLfloat matGrayAmbDiff[] = { 0.62f, 0.64f, 0.69f, 1.0f };
+GLfloat matGreenAmbDiff[] = { 0.15f, 0.75f, 0.15f, 1.0f };
+GLfloat matYellowAmbDiff[] = { 0.85f, 0.85f, 0.15f, 1.0f };
+GLfloat matRedAmbDiff[] = { 0.85f, 0.15f, 0.15f, 1.0f };
+GLfloat matBlueAmbDiff[] = { 0.25f, 0.4f, 0.85f, 1.0f };
+
 // Keyboard
-BYTE key[128] = { 0 };
+BYTE key[256] = { 0 };
 
 // Strings
-LPCTSTR szMainWndTitle{ L"C++ OpenGL Environment" };
+LPCTSTR szMainWndTitle{ L"C++ OpenGL Environment - [Frame " };
 LPCTSTR szMainWndClass{ L"MainWndClass" };
 
 LPCTSTR szMsgCloseText{ L"Close?" };
@@ -152,9 +167,12 @@ LPCTSTR szManualMsgText{
     "Space, Esc - Reset Scene\n"
     "Shift - Boost" };
 
-WCHAR pszDest[20]; //arraysize = 20;
-size_t cbDest = 40; // arraysize * sizeof(WCHAR);
-LPCTSTR pszFormat = TEXT("%s%f");
+//https://learn.microsoft.com/en-us/windows/win32/api/strsafe/nf-strsafe-stringcbprintfw
+WCHAR pszDest[64]; //arraysize = 64;
+size_t cbDest = 128; // arraysize * sizeof(WCHAR);
+//https://learn.microsoft.com/en-us/cpp/c-runtime-library/format-specification-syntax-printf-and-wprintf-functions?view=msvc-170
+LPCTSTR pszFormatTitle = TEXT("%s%u]");
+LPCTSTR pszFormatStatus = TEXT("%s%.*f");
 
 LPCTSTR psz_xCam = TEXT("xCam = ");
 LPCTSTR psz_yCam = TEXT("yCam = ");
@@ -235,12 +253,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     wcx.cbClsExtra = 0;
     wcx.cbWndExtra = 0;
     wcx.hInstance = ghInst;
-    wcx.hIcon = LoadIcon(ghInst, MAKEINTRESOURCE(IDI_OGLTEMPLATE));
+    wcx.hIcon = LoadIcon(ghInst, MAKEINTRESOURCE(IDI_APPLICATION));
     wcx.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcx.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
     wcx.lpszMenuName = MAKEINTRESOURCEW(IDC_OGLTEMPLATE);
     wcx.lpszClassName = szMainWndClass;
-    wcx.hIconSm = LoadIcon(wcx.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+    wcx.hIconSm = LoadIcon(wcx.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
 
     RegisterClassEx(&wcx);
 
@@ -250,6 +268,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_OGLTEMPLATE));
 
     InitializeGL();
+    ReAssign();
 
     ShowWindow(ghWnd, nCmdShow);
     UpdateWindow(ghWnd);
@@ -322,18 +341,20 @@ void InitializeGL()
 
     glEnable(GL_DEPTH_TEST);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-    ReAssign();
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    // glEnable(GL_POLYGON_SMOOTH);
+    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 }
 
 // 12_ReAssignProc.asm
 void ReAssign()
 {
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    LinearSpeed = 0.01f;
-    AngularSpeed = 0.1f;
-    GlobalScale = 0.001f;
+    //GlobalScale = 0.001f;
+    LinearSpeed = 10.0f;
     LinearBoost = 10.0f;
+    AngularSpeed = 0.1f;
     AngularBoost = 10.0f;
     dStep = LinearSpeed;
     dAngle = AngularSpeed;
@@ -344,9 +365,11 @@ void ReAssign()
     aXY_Cam = 0.0f; // Camera Yaw Left = World Yaw Right Over Camera's Center
     aXZ_Cam = 0.0f; // Cameta Roll Left = World Roll Right
     xCam = 0.0f;
-    yCam = 9.0f; // Camera Move Back = World Move Forward
-    zCam = -4.5f; // Camera Move Up = World Move Down
-    isRefreshed = 1; // Set Flag
+    yCam = 9000.0f; // Camera Move Back = World Move Forward
+    zCam = -4500.0f; // Camera Move Up = World Move Down
+    // Set Flags
+    isInitialPosition = 1;
+    isRefreshed = 0;
 }
 
 // 20_WndProc.asm
@@ -356,44 +379,53 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         case WM_MOUSEMOVE:
         {
-            switch (nMouse)
+            switch (nMouseMode)
             {
                 case MOUSE_MODE_CAMERA_ROTATION:
                 {
                     xCurPos = GET_X_LPARAM(lParam);
                     yCurPos = GET_Y_LPARAM(lParam);
-                    dxMouse = float(xPrevPos - xCurPos) / 20;
-                    dyMouse = float(yPrevPos - yCurPos) / 20;
+                    dxMouse = float((xPrevPos - xCurPos) / 8);
+                    dyMouse = float((yPrevPos - yCurPos) / 4);
                     aXY_Cam = CheckAngle(aXY_Cam + dxMouse);
                     aYZ_Cam = CheckAngle(aYZ_Cam + dyMouse);
                     xPrevPos = xCurPos;
                     yPrevPos = yCurPos;
+                    //Set Flags
+                    isInitialPosition = 0;
+                    isRefreshed = 0;
                     return 0;
                 }
                 case MOUSE_MODE_CAMERA_ROLL:
                 {
                     xCurPos = GET_X_LPARAM(lParam);
                     yCurPos = GET_Y_LPARAM(lParam);
-                    dxMouse = float(xPrevPos - xCurPos) / 20;
-                    dyMouse = float(yPrevPos - yCurPos) / 20;
+                    dxMouse = float((xPrevPos - xCurPos) / 8);
+                    dyMouse = float((yPrevPos - yCurPos) / 4);
                     aXZ_Cam = CheckAngle(aXZ_Cam + dxMouse);
                     aYZ_Cam = CheckAngle(aYZ_Cam + dyMouse);
                     xPrevPos = xCurPos;
                     yPrevPos = yCurPos;
+                    //Set Flags
+                    isInitialPosition = 0;
+                    isRefreshed = 0;
                     return 0;
                 }
                 case MOUSE_MODE_CAMERA_PAN:
                 {
                     xCurPos = GET_X_LPARAM(lParam);
                     yCurPos = GET_Y_LPARAM(lParam);
-                    dxMouse = float(xPrevPos - xCurPos) / 20;
-                    dyMouse = float(yPrevPos - yCurPos) / 20;
+                    dxMouse = float((xPrevPos - xCurPos) * 64);
+                    dyMouse = float((yPrevPos - yCurPos) * 64);
                     dxCam0 = CheckDistance(-dxMouse);
                     dyCam0 = CheckDistance(dyMouse);
                     dzCam0 = 0;
                     CameraMove();
                     xPrevPos = xCurPos;
                     yPrevPos = yCurPos;
+                    //Set Flags
+                    isInitialPosition = 0;
+                    isRefreshed = 0;
                     return 0;
                 }
                 default:
@@ -407,14 +439,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 case VK_ESCAPE:
                 {
-                    if (isRefreshed)
+                    if (isInitialPosition == 0)
                     {
-                        CloseWndProc();
+                        ReAssign();
                         return 0; // Return To The Message Loop
                     }
                     else
                     {
-                        ReAssign();
+                        CloseWndProc();
                         return 0; // Return To The Message Loop
                     }
                 }
@@ -449,38 +481,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         case WM_LBUTTONDOWN:
         {
-            nMouse = MOUSE_MODE_CAMERA_ROTATION;
+            nMouseMode = MOUSE_MODE_CAMERA_ROTATION;
             xPrevPos = GET_X_LPARAM(lParam);
             yPrevPos = GET_Y_LPARAM(lParam);
             return 0;
         }
         case WM_LBUTTONUP:
         {
-            nMouse = MOUSE_MODE_NO_ACTION;
+            nMouseMode = MOUSE_MODE_NO_ACTION;
             return 0;
         }
         case WM_RBUTTONDOWN:
         {
-            nMouse = MOUSE_MODE_CAMERA_ROLL;
+            nMouseMode = MOUSE_MODE_CAMERA_ROLL;
             xPrevPos = GET_X_LPARAM(lParam);
             yPrevPos = GET_Y_LPARAM(lParam);
             return 0;
         }
         case WM_RBUTTONUP:
         {
-            nMouse = MOUSE_MODE_NO_ACTION;
+            nMouseMode = MOUSE_MODE_NO_ACTION;
             return 0;
         }
         case WM_MBUTTONDOWN:
         {
-            nMouse = MOUSE_MODE_CAMERA_PAN;
+            nMouseMode = MOUSE_MODE_CAMERA_PAN;
             xPrevPos = GET_X_LPARAM(lParam);
             yPrevPos = GET_Y_LPARAM(lParam);
             return 0;
         }
         case WM_MBUTTONUP:
         {
-            nMouse = MOUSE_MODE_NO_ACTION;
+            nMouseMode = MOUSE_MODE_NO_ACTION;
             return 0;
         }
         case WM_MBUTTONDBLCLK:
@@ -492,7 +524,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             dxCam0 = 0;
             dyCam0 = 0;
-            dzCam0 = float(GET_WHEEL_DELTA_WPARAM(wParam) / 60);
+            dzCam0 = float(GET_WHEEL_DELTA_WPARAM(wParam) * 8);
             CameraMove();
             return 0;
         }
@@ -569,7 +601,7 @@ void ResizeWndProc()
     RectHeight = rc.bottom - rc.top;
     if (RectHeight > 0)
     {
-        RectAspect = (float)RectWidth / (float)RectHeight;
+        RectAspect = (GLdouble)RectWidth / (GLdouble)RectHeight;
     }
     //Main Viewport
     glViewport(0, 0, RectWidth, RectHeight);
@@ -583,6 +615,7 @@ void ResizeWndProc()
         xStatusParts[i] = (xStatusProportions[i] * RectWidth) >> 10;
     }
     SendMessage(hwndStatusBar, SB_SETPARTS, 9, (LPARAM)&xStatusParts);
+    isRefreshed = 0;
 }
 
 // 28_AboutProc.asm
@@ -624,115 +657,68 @@ void CloseWndProc()
 // 30_DrawGLSceneProc.asm
 void DrawGLScene()
 {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     CheckKeys();
-    RefreshStatus();
-    SetView();
-    DrawAxes();
-    DrawObject();
-    SwapBuffers(ghDC); // Swap Buffers (Double Buffering)
+    if (isRefreshed == 0)
+    {
+        SetView();
+        DrawAxes();
+        DrawObject();
+        SwapBuffers(ghDC); // Double Buffering
+        RefreshStatus();
+        nFrame += 1;
+        StringCbPrintf(pszDest, cbDest, pszFormatTitle, szMainWndTitle, nFrame);
+        SetWindowText(ghWnd, pszDest);
+        isRefreshed = 1;
+    }
 }
 
 // 31_CheckKeys.asm
 void CheckKeys()
 {
-// Return to Normal Speed
+    // Return to Normal Speed
     dStep = LinearSpeed;
     dAngle = AngularSpeed;
-//Boost
+    //Boost
     if (key[VK_SHIFT])
     {
         dStep = dStep * LinearBoost;
         dAngle = dAngle * AngularBoost;
     }
-// Model Rotation - Keyboard Input
-    if (key[0x57]) {aYZ_Model = CheckAngle(aYZ_Model - dAngle);} //W
-    if (key[0x53]) {aYZ_Model = CheckAngle(aYZ_Model + dAngle);} //S
-    if (key[0x41]) {aXY_Model = CheckAngle(aXY_Model + dAngle);} //A - Model Turn Counter-Clockwise
-    if (key[0x44]) {aXY_Model = CheckAngle(aXY_Model - dAngle);} //D - Model Turn Clockwise
-    if (key[0x51]) {aXZ_Model = CheckAngle(aXZ_Model - dAngle);} //Q
-    if (key[0x45]) {aXZ_Model = CheckAngle(aXZ_Model + dAngle);} //E
-
-    //Camera Move Forward and Backward
-    if (key[VK_UP])
-    {
-        dxCam0 = 0;
-        dyCam0 = 0;
-        dzCam0 = dStep;
-        CameraMove();
-    }
-    if (key[VK_DOWN])
-    {
-        dxCam0 = 0;
-        dyCam0 = 0;
-        dzCam0 = -dStep;
-        CameraMove();
-    }
-// Camera Move Left and Right
-    if (key[VK_LEFT])
-    {
-        dxCam0 = dStep;
-        dyCam0 = 0;
-        dzCam0 = 0;
-        CameraMove();
-    }
-    if (key[VK_RIGHT])
-    {
-        dxCam0 = -dStep;
-        dyCam0 = 0;
-        dzCam0 = 0;
-        CameraMove();
-    }
-//Camera Move Up and Down
-    if (key[VK_PRIOR]) //PageUp
-    {
-        dxCam0 = 0;
-        dyCam0 = -dStep;
-        dzCam0 = 0;
-        CameraMove();
-    }
-    if (key[VK_NEXT]) //PageDown
-    {
-        dxCam0 = 0;
-        dyCam0 = dStep;
-        dzCam0 = 0;
-        CameraMove();
-    }
+    // Model Rotation - Keyboard Input
+    if (key[0x57]) { aYZ_Model = CheckAngle(aYZ_Model - dAngle); isRotated = 1; } //W - Model Tilt Down
+    if (key[0x53]) { aYZ_Model = CheckAngle(aYZ_Model + dAngle); isRotated = 1; } //S - Model Tilt Up
+    if (key[0x41]) { aXY_Model = CheckAngle(aXY_Model + dAngle); isRotated = 1; } //A - Model Turn Counter-Clockwise
+    if (key[0x44]) { aXY_Model = CheckAngle(aXY_Model - dAngle); isRotated = 1; } //D - Model Turn Clockwise
+    if (key[0x51]) { aXZ_Model = CheckAngle(aXZ_Model - dAngle); isRotated = 1; } //Q - Model Roll Counter-Clockwise
+    if (key[0x45]) { aXZ_Model = CheckAngle(aXZ_Model + dAngle); isRotated = 1; } //E - Model Roll Clockwise
+    if (isRotated == 1) { ModelRotate(); isRotated = 0; }
+    //Stop the movement
+    dxCam0 = dyCam0 = dzCam0 = 0;
+    //Camera Move
+    if (key[VK_UP]) { dzCam0 = dStep; isMoved = 1; } //Arrow Up = Camera Move Forward
+    if (key[VK_DOWN]) { dzCam0 = -dStep; isMoved = 1; } //Arrow Down = Camera Move Backward
+    if (key[VK_LEFT]) { dxCam0 = dStep; isMoved = 1; } //Arrow Left = Camera Move Left
+    if (key[VK_RIGHT]) { dxCam0 = -dStep; isMoved = 1; } //Arrow Right = Camera Move Right
+    if (key[VK_PRIOR]) { dyCam0 = -dStep; isMoved = 1; } //PageUp = Camera Move Up
+    if (key[VK_NEXT]) { dyCam0 = dStep; isMoved = 1; } //PageDown = Camera Move Down
+    //All Changes Committed
+    if (isMoved == 1) { CameraMove(); isMoved = 0; }
 }
 
-// 32_CheckAngleProc.asm
+// 32_ModelRotateProc.asm
+void ModelRotate()
+{
+    // Set Flags
+    isInitialPosition = 0;
+    isRefreshed = 0;
+}
+
+// 33_CheckAngleProc.asm
 float CheckAngle(float Angle)
 {
-    if (Angle > 360)
-    {
-        return (Angle - 360);
-    }
-    else if (Angle < 0)
-    {
-        return (Angle + 360);
-    }
-    else
-    {
-        return Angle;
-    }
-    isRefreshed = 0; //Set Flag
-}
-
-// 33_CheckDistanceProc.asm
-float CheckDistance(float Distance)
-{
-    if (Distance > 1000)
-    {
-        return 1000;
-    }
-    else if (Distance < -1000)
-    {
-        return -1000;
-    }
-    else
-    {
-        return Distance;
-    }
+    if (Angle > 360.0f) { return (Angle - 360.0f); }
+    else if (Angle < 0.0f) { return (Angle + 360.0f); }
+    else { return Angle; }
 }
 
 // 34_CameraMoveProc.asm
@@ -763,24 +749,34 @@ void CameraMove()
     xCam = CheckDistance(xCam + dxCam3);
     yCam = CheckDistance(yCam + dyCam3);
     zCam = CheckDistance(zCam + dzCam3);
-// Set Flag
+// Set Flags
+    isInitialPosition = 0;
     isRefreshed = 0;
 }
 
-// 35_SetView.asm
+// 35_CheckDistanceProc.asm
+float CheckDistance(float Distance)
+{
+    if (Distance > 1000000.f) { return 1000000.f; }
+    else if (Distance < -1000000.f) { return -1000000.f; }
+    else { return Distance; }
+}
+
+// 36_SetView.asm
 void SetView()
 {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 //Set Object
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glScalef(GlobalScale, GlobalScale, GlobalScale); // 1 - Model Scale
+    //glScalef(GlobalScale, GlobalScale, GlobalScale); // 1 - Model Scale
     glRotatef(aYZ_Model, 1, 0, 0); // 2 - Model Pitch
     glRotatef(aXY_Model, 0, 0, 1); // 3 - Model Yaw
     glRotatef(aXZ_Model, 0, 1, 0); // 4 - Model Roll
 //Set Camera
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(90, RectAspect, 0.1, 1000);
+    gluPerspective(90.0, RectAspect, 1.0, 1000000.0); // double
     glRotatef(aYZ_Cam, 1.0f, 0.0f, 0.0f); // 1 - Camera Pitch
     glRotatef(aXY_Cam, 0.0f, 0.0f, 1.0f); // 2 - Camera Yaw
     glRotatef(aXZ_Cam, 0.0f, 1.0f, 0.0f); // 3 - Camera Roll
@@ -790,57 +786,54 @@ void SetView()
 // 40_RefreshStatus.asm
 void RefreshStatus()
 {
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_xCam, xCam);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_xCam, 4, xCam);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 0, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_yCam, yCam);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_yCam, 4, yCam);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 1, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_zCam, zCam);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_zCam, 4, zCam);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 2, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aYZ_Model, aYZ_Model);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_aYZ_Model, 4, aYZ_Model);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 3, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXY_Model, aXY_Model);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_aXY_Model, 4, aXY_Model);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 4, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXZ_Model, aXZ_Model);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_aXZ_Model, 4, aXZ_Model);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 5, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aYZ_Cam, aYZ_Cam);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_aYZ_Cam, 4, aYZ_Cam);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 6, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXY_Cam, aXY_Cam);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_aXY_Cam, 4, aXY_Cam);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 7, (LPARAM)pszDest);
 
-    StringCbPrintf(pszDest, cbDest, pszFormat, psz_aXZ_Cam, aXZ_Cam);
+    StringCbPrintf(pszDest, cbDest, pszFormatStatus, psz_aXZ_Cam, 4, aXZ_Cam);
     SendMessage(hwndStatusBar, SB_SETTEXTW, 8, (LPARAM)pszDest);
 }
 
 // 50_DrawAxesProc.asm
 void DrawAxes()
 {
-    glColor3f(1, 0, 0); // Red
+    glDisable(GL_LIGHTING);
     glBegin(GL_LINES);
+        glColor3f(1, 0, 0); // Red
         glVertex3f(-7000, 0, 0);
         glVertex3f(7000, 0, 0);
         glVertex3f(6900, -50, 0); // Arrow
         glVertex3f(7000, 0, 0);
         glVertex3f(7000, 0, 0);
         glVertex3f(6900, 50, 0);
-    glEnd();
-    glColor3f(0, 1, 0); // Green
-    glBegin(GL_LINES);
+        glColor3f(0, 1, 0); // Green
         glVertex3f(0, -7000, 0);
         glVertex3f(0, 7000, 0);
         glVertex3f(-50, 6900, 0); // Arrow
         glVertex3f(0, 7000, 0);
         glVertex3f(0, 7000, 0);
         glVertex3f(50, 6900, 0);
-    glEnd();
-    glColor3f(0, 0, 1); // Blue
-    glBegin(GL_LINES);
+        glColor3f(0, 0, 1); // Blue
         glVertex3f(0, 0, 0);
         glVertex3f(0, 0, 1000);
         glVertex3f(-50, 0, 900); // Arrow
@@ -853,8 +846,17 @@ void DrawAxes()
 // 51_DrawObjectProc.asm
 void DrawObject()
 {
-    // Counters
-    BYTE x, y, bType; 
+    //Counters
+    BYTE x, y, bType;
+    //Light On
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glEnable(GL_LIGHT1);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT1, GL_POSITION, light_position);
+    //Scheme G
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     glTranslatef(-5875.0f, 5875.0f, 0.0f);
@@ -868,31 +870,36 @@ void DrawObject()
             {
                 case 1:
                 {
-                    glColor3f(0.65f, 0.65f, 0.65f); //Gray
+                    //glColor3f(0.65f, 0.65f, 0.65f); //Gray
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, matGrayAmbDiff);
                     rbmkDrawSb11();
                     break;
                 }
                 case 2:
                 {
-                    glColor3f(0.15f, 0.75f, 0.15f); //Green
+                    //glColor3f(0.15f, 0.75f, 0.15f); //Green
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, matGreenAmbDiff);
                     rbmkDrawCap();
                     break;
                 }
                 case 3:
                 {
-                    glColor3f(0.85f, 0.85f, 0.15f); //Yellow
+                    //glColor3f(0.85f, 0.85f, 0.15f); //Yellow
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, matYellowAmbDiff);
                     rbmkDrawCap();
                     break;
                 }
                 case 4:
                 {
-                    glColor3f(0.85f, 0.15f, 0.15f); //Red
+                    //glColor3f(0.85f, 0.15f, 0.15f); //Red
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, matRedAmbDiff);
                     rbmkDrawCap();
                     break;
                 }
                 case 5:
                 {
-                    glColor3f(0.25f, 0.4f, 0.85f); //Blue
+                    //glColor3f(0.25f, 0.4f, 0.85f); //Blue
+                    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, matBlueAmbDiff);
                     rbmkDrawCap();
                     break;
                 }
@@ -914,44 +921,63 @@ void DrawObject()
 void rbmkDrawSb11()
 {
     glBegin(GL_QUADS);
-        glVertex3f(-100, -100, 0);
-        glVertex3f(100, -100, 0);
-        glVertex3f(100, 100, 0);
-        glVertex3f(-100, 100, 0);
-    glEnd();
-    glBegin(GL_QUAD_STRIP);
-        glVertex3f(-120, -120, -20);
-        glVertex3f(-100, -100, 0);
-        glVertex3f(120, -120, -20);
-        glVertex3f(100, -100, 0);
-        glVertex3f(120, 120, -20);
-        glVertex3f(100, 100, 0);
-        glVertex3f(-120, 120, -20);
-        glVertex3f(-100, 100, 0);
-        glVertex3f(-120, -120, -20);
-        glVertex3f(-100, -100, 0);
-    glEnd();
-   glBegin(GL_QUAD_STRIP);
-        glVertex3f(-120, -120, -20);
-        glVertex3f(-100, -100, -600);
-        glVertex3f(120, -120, -20);
-        glVertex3f(100, -100, -600);
-        glVertex3f(120, 120, -20);
-        glVertex3f(100, 100, -600);
-        glVertex3f(-120, 120, -20);
-        glVertex3f(-100, 100, -600);
-        glVertex3f(-120, -120, -20);
-        glVertex3f(-100, -100, -600);
+    glNormal3f(0.0f, 0.0f, 1.0f); //0 - Top
+    glVertex3f(-110, -110, 0);
+    glVertex3f(110, -110, 0);
+    glVertex3f(110, 110, 0);
+    glVertex3f(-110, 110, 0);
+    glNormal3f(0.0f, 1.0f, 1.0f); //1 - North
+    glVertex3f(120, 120, -10);
+    glVertex3f(-120, 120, -10);
+    glVertex3f(-110, 110, 0);
+    glVertex3f(110, 110, 0);
+    glNormal3f(-1.0f, 0.0f, 1.0f); // 2 - West
+    glVertex3f(-120, 120, -10);
+    glVertex3f(-120, -120, -10);
+    glVertex3f(-110, -110, 0);
+    glVertex3f(-110, 110, 0);
+    glNormal3f(0.0f, -1.0f, 1.0f); //3 - South
+    glVertex3f(-120, -120, -10);
+    glVertex3f(120, -120, -10);
+    glVertex3f(110, -110, 0);
+    glVertex3f(-110, -110, 0);
+    glNormal3f(1.0f, 0.0f, 1.0f); //4 - East
+    glVertex3f(120, -120, -10);
+    glVertex3f(120, 120, -10);
+    glVertex3f(110, 110, 0);
+    glVertex3f(110, -110, 0);
     glEnd();
 }
 
 void rbmkDrawCap()
 {
-    float xyzCap[12]{ -120.0f,-120.0f,0.0f, 120.0f,-120.0f,0.0f, 120.0f,120.0f,0.0f, -120.0f,120.0f,0.0f };
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, &xyzCap); //3 Coordinates per Vertex
-    glDrawArrays(GL_QUADS, 0, 4); //Only 4 Points are Defined now
-    glDisableClientState(GL_VERTEX_ARRAY);
+    glBegin(GL_QUADS);
+    glNormal3f(0.0f, 0.0f, 1.0f); //0 - Top
+    glVertex3f(-110, -110, 0);
+    glVertex3f(110, -110, 0);
+    glVertex3f(110, 110, 0);
+    glVertex3f(-110, 110, 0);
+    glNormal3f(0.0f, 1.0f, 1.0f); //1 - North
+    glVertex3f(120, 120, -10);
+    glVertex3f(-120, 120, -10);
+    glVertex3f(-110, 110, 0);
+    glVertex3f(110, 110, 0);
+    glNormal3f(-1.0f, 0.0f, 1.0f); // 2 - West
+    glVertex3f(-120, 120, -10);
+    glVertex3f(-120, -120, -10);
+    glVertex3f(-110, -110, 0);
+    glVertex3f(-110, 110, 0);
+    glNormal3f(0.0f, -1.0f, 1.0f); //3 - South
+    glVertex3f(-120, -120, -10);
+    glVertex3f(120, -120, -10);
+    glVertex3f(110, -110, 0);
+    glVertex3f(-110, -110, 0);
+    glNormal3f(1.0f, 0.0f, 1.0f); //4 - East
+    glVertex3f(120, -120, -10);
+    glVertex3f(120, 120, -10);
+    glVertex3f(110, 110, 0);
+    glVertex3f(110, -110, 0);
+    glEnd();
 }
 
 void rbmkDrawChannel()

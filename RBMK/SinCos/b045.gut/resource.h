@@ -13,8 +13,6 @@
 #define IDD_ABOUTBOX                    103
 #define IDM_ABOUT                       104
 #define IDM_EXIT                        105
-#define IDI_OGLTEMPLATE                 107
-#define IDI_SMALL                       108
 #define IDC_OGLTEMPLATE                 109
 #define IDR_MAINFRAME                   128
 #define IDC_STATIC                      -1
