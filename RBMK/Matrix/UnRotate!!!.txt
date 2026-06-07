@@ -1,0 +1,5 @@
+For a 4D rotation matrix, the inverse is simply its transpose. Did I get it right that if I rotated the scene by the matrix M then to undo the rotation I can just multiply the result by the transposed matrix?
+
+Yes, you are absolutely correct! For rotation matrices in any dimension (including 4D), the inverse is indeed the transpose.
+
+is ONLY true for pure rotation matrices. It is NOT true for general 4x4 matrices that might include scaling, shearing, or projection.
