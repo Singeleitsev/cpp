@@ -1,0 +1,4 @@
+﻿  oglTemplate.cpp
+D:\dev\cpp\RBMK\Matrix\b003s\oglTemplate.cpp(221,34): warning C4302: приведение типов: усечение из "LPWSTR" к "WORD"
+D:\dev\cpp\RBMK\Matrix\b003s\oglTemplate.cpp(226,43): warning C4302: приведение типов: усечение из "LPWSTR" к "WORD"
+  oglTemplate.vcxproj -> D:\dev\cpp\RBMK\Matrix\b003s\x64\Debug\oglTemplate.exe
